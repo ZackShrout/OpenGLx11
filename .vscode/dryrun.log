@@ -1,0 +1,5 @@
+make build --dry-run --always-make --keep-going --print-directory
+make: Entering directory '/home/zack/Dev/OpenGLx11'
+g++ main.cpp -o test.a -lGL -lX11
+make: Leaving directory '/home/zack/Dev/OpenGLx11'
+ 

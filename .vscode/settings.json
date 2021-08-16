@@ -1,0 +1,10 @@
+{
+    "makefile.extensionOutputFolder": "./.vscode",
+    "makefile.launchConfigurations": [
+        {
+            "cwd": "/home/zack/Dev/OpenGLx11",
+            "binaryPath": "/home/zack/Dev/OpenGLx11/test.a",
+            "binaryArgs": []
+        }
+    ]
+}

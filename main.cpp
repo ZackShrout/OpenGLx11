@@ -1,94 +1,105 @@
 #include <iostream>
-#include <X11/X.h>
-#include <X11/Xlib.h>
-#include <GL/gl.h>
+#include <unistd.h>
+#include <stdlib.h>
 #include <GL/glx.h>
-#include <GL/glu.h>
+#include <X11/Xlib.h>
 
-Display*                display;
-Window                  root;
-GLint                   attribs[] = { GLX_RGBA, GLX_DEPTH_SIZE, 24, GLX_DOUBLEBUFFER, None};
-XVisualInfo*            visual;
-Colormap                colorMap;
-XSetWindowAttributes    setWindowAttribs;
-Window                  window;
-GLXContext              context;
-XWindowAttributes       windowAttribs;
-XEvent                  event;
-
-void DrawQuad()
-{
-    glClearColor(1.0, 1.0, 1.0, 1.0);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrtho(-1.0, 1.0, -1.0, 1.0, 1.0, 20.0);
-
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    gluLookAt(0.0, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
-
-    glBegin(GL_QUADS);
-    glColor3f(1.0, 0.0, 0.0); glVertex3f(-0.75, -0.75, 0.0);
-    glColor3f(0.0, 1.0, 0.0); glVertex3f(0.75, -0.75, 0.0);
-    glColor3f(0.0, 0.0, 1.0); glVertex3f(0.75, 0.75, 0.0);
-    glColor3f(1.0, 1.0, 0.0); glVertex3f(-0.75, 0.75, 0.0);
-    glEnd();
-}
+typedef GLXContext (*glXCreateContextAttribsARBProc)
+    (Display*, GLXFBConfig, GLXContext, Bool, const int*);
 
 int main()
 {
-    display = XOpenDisplay(NULL);
-    if (display == nullptr)
-    {
-        std::cout << "Cannot connect to X server!" << std::endl;
-        return -1;
+    Display* display = 0;
+    Window window = 0;
+
+    // Create_display_and_window
+    display = XOpenDisplay(0);
+    window = XCreateSimpleWindow(display, DefaultRootWindow(display),
+                              10, 10,   /* x, y */
+                              800, 600, /* width, height */
+                              0, 0,     /* border_width, border */
+                              0);       /* background */
+
+    // Create_the_modern_OpenGL_context
+    static int visualAttribs[] = {
+        GLX_RENDER_TYPE, GLX_RGBA_BIT,
+        GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT,
+        GLX_DOUBLEBUFFER, true,
+        GLX_RED_SIZE, 1,
+        GLX_GREEN_SIZE, 1,
+        GLX_BLUE_SIZE, 1,
+        None
+    };
+
+    int numFBC = 0;
+    GLXFBConfig *fbc = glXChooseFBConfig(display,
+                                         DefaultScreen(display),
+                                         visualAttribs, &numFBC);
+    if (!fbc) {
+        std::cout << "glXChooseFBConfig() failed!" << std::endl;
+        return 1;
     }
 
-    root = DefaultRootWindow(display);
+    glXCreateContextAttribsARBProc glXCreateContextAttribsARB = 0;
+    glXCreateContextAttribsARB =
+        (glXCreateContextAttribsARBProc)
+        glXGetProcAddress((const GLubyte*)"glXCreateContextAttribsARB");
 
-    visual = glXChooseVisual(display, 0, attribs);
-    if (visual == nullptr)
-    {
-        std::cout << "No apprpriat visual found!" << std::endl;
-        return -1;
+    if (!glXCreateContextAttribsARB) {
+        std::cout << "glXCreateContextAttribsARB() not found!" << std::endl;
+        return 1;
     }
-    std::cout << "Visual " << (void*)visual->visualid << " selected." << std::endl;
 
-    colorMap = XCreateColormap(display, root, visual->visual, AllocNone);
-    setWindowAttribs.colormap = colorMap;
-    setWindowAttribs.event_mask = ExposureMask | KeyPressMask;
+    // Set desired minimum OpenGL version
+    static int contextAttribs[] = {
+        GLX_CONTEXT_MAJOR_VERSION_ARB, 4,
+        GLX_CONTEXT_MINOR_VERSION_ARB, 2,
+        None
+    };
+    // Create modern OpenGL contextS
+    GLXContext context = glXCreateContextAttribsARB(display, fbc[0], NULL, true,
+                                                contextAttribs);
+    if (!context) {
+        std::cout << "Failed to create OpenGL context! Exiting." << std::endl;
+        return 1;
+    }
 
-    window = XCreateWindow(display, root, 0, 0, 800, 460, 0, visual->depth,
-                            InputOutput, visual->visual, CWColormap | CWEventMask, &setWindowAttribs);
+    // Show_the_window
     XMapWindow(display, window);
-    XStoreName(display, window, "OpenGL and X11 Test");
-
-    context = glXCreateContext(display, visual, NULL, GL_TRUE);
     glXMakeCurrent(display, window, context);
-    glEnable(GL_DEPTH_TEST);
 
-    while(true)
-    {
-        XNextEvent(display, &event);
+    int major = 0, minor = 0;
+    glGetIntegerv(GL_MAJOR_VERSION, &major);
+    glGetIntegerv(GL_MINOR_VERSION, &minor);
+    std::cout << "OpenGL context created.\nVersion " << major << "." << minor << std::endl;
+    std::cout << "Vendor " << glGetString(GL_VENDOR) << std::endl;
+    std::cout << "Renderer " << glGetString(GL_RENDERER) << std::endl;
 
-        if (event.type == Expose)
-        {
-            XGetWindowAttributes(display, window, &windowAttribs);
-            glViewport(0, 0, windowAttribs.width, windowAttribs.height);
-            DrawQuad();
-            glXSwapBuffers(display, window);
+    // Application_loop
+    bool quit = false;
+    while (!quit) {
+        while (XPending(display)) {
+            XEvent xev;
+            XNextEvent(display, &xev);
+
+            if (xev.type == KeyPress) {
+                quit = true;
+            }
         }
-        else if (event.type == KeyPress)
-        {
-            glXMakeCurrent(display, None, NULL);
-            glXDestroyContext(display, context);
-            XDestroyWindow(display, window);
-            XCloseDisplay(display);
-            return 0;
-        }
+
+        glClearColor(0.8, 0.6, 0.7, 1.0);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        glXSwapBuffers(display, window);
+
+        usleep(1000 * 10);
     }
-    
+
+    glXMakeCurrent(display, 0, 0);
+    glXDestroyContext(display, context);
+
+    XDestroyWindow(display, window);
+    XCloseDisplay(display);
+
     return 0;
 }
