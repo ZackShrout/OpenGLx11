@@ -1,5 +1,5 @@
 build:
-	g++ main.cpp -o test.a -lGL -lX11
+	g++ *.cpp -o test.a -lGL -lX11
 
 run:
 	./test.a
