@@ -30,12 +30,30 @@ namespace Havana::Platform
 
 #ifdef __linux__
 
-	#include <GL/glx.h>
-	#include <X11/Xlib.h>
+#include <GL/glx.h>
+#include <X11/Xlib.h>
 
+// Prevents collision from our window class and the XWindow Window define
+using XWindow = Window;
+
+namespace Havana::Platform
+{
 	typedef GLXContext (*glXCreateContextAttribsARBProc)
     (Display*, GLXFBConfig, GLXContext, Bool, const int*);
 	
-	using window_handle = Window*;
+	using window_proc = XEvent*;
+	using window_handle = XWindow*;
+
+	struct WindowInitInfo
+	{
+		window_proc		callback{ nullptr };
+		window_handle	parent{ nullptr };
+		const wchar_t*	caption{ nullptr };
+		s32				left{ 0 };
+		s32				top{ 0 };
+		s32				width{ 1580 };
+		s32				height{ 950 };
+	};
+}
 
 #endif // __linux__

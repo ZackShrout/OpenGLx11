@@ -329,6 +329,91 @@ namespace Havana::Platform
 			return false; // TODO: implement
 		}
 	} // anonymous namespace
+
+	Window MakeWindow(const WindowInitInfo* const initInfo /*= nullptr*/)
+	{
+		window_proc callback{ initInfo ? initInfo->callback : nullptr };
+		window_handle parent{ initInfo ? initInfo->parent : nullptr };
+
+		// Create display
+		Display* display { XOpenDisplay(0) };
+		if (display == NULL) {
+			return {};
+		}
+
+		// Setup the screen, visual, and colormap
+		int screen { DefaultScreen(display) };
+		Visual* visual { DefaultVisual(display, screen) };
+		Colormap colormap { XCreateColormap(display, DefaultRootWindow(display), visual, AllocNone) };
+
+		// Define attributes for the window
+		XSetWindowAttributes attributes;
+		attributes.event_mask = ExposureMask | KeyPressMask | KeyReleaseMask | 
+								ButtonPressMask | ButtonReleaseMask | PointerMotionMask;
+		attributes.colormap = colormap;
+
+		// check for initial info, use defaults if none given
+		const wchar_t* caption{ (initInfo && initInfo->caption) ? initInfo->caption : L"Havana Game" };
+		const s32 left{ initInfo ? initInfo->left : 0 }; // generally, the X window manager overrides
+		const s32 top{ initInfo ? initInfo->top : 0 };   // the top left coords, so default is 0,0
+		const s32 width{ DisplayWidth(display, DefaultScreen(display)) };
+		const s32 height{ DisplayHeight(display, DefaultScreen(display)) };
+
+		XWindow window { XCreateWindow(display, DefaultRootWindow(display), left, top, width, height, 0,
+										DefaultDepth(display, screen), InputOutput, visual,
+										CWColormap | CWEventMask, &attributes) };
+
+		// Create_the_modern_OpenGL_context
+		static int visualAttribs[] {
+			GLX_RENDER_TYPE, GLX_RGBA_BIT,
+			GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT,
+			GLX_DOUBLEBUFFER, true,
+			GLX_RED_SIZE, 1,
+			GLX_GREEN_SIZE, 1,
+			GLX_BLUE_SIZE, 1,
+			None
+		};
+
+		int numFBC { 0 };
+		GLXFBConfig *fbc { glXChooseFBConfig(display,
+											DefaultScreen(display),
+											visualAttribs, &numFBC) };
+		if (!fbc) {
+			return {};
+		}
+
+		glXCreateContextAttribsARBProc glXCreateContextAttribsARB { 0 };
+		glXCreateContextAttribsARB =
+			(glXCreateContextAttribsARBProc)
+			glXGetProcAddress((const GLubyte*)"glXCreateContextAttribsARB");
+
+		if (!glXCreateContextAttribsARB) {
+			return {};
+		}
+
+		// Set desired minimum OpenGL version
+		int contextAttribs[] {
+			GLX_CONTEXT_MAJOR_VERSION_ARB, 4,
+			GLX_CONTEXT_MINOR_VERSION_ARB, 2,
+			None
+		};
+
+		// Create modern OpenGL context
+		GLXContext context { glXCreateContextAttribsARB(display, fbc[0], NULL, true,
+													contextAttribs) };
+		if (!context) {
+			return {};
+		}
+
+		// Show window
+		XMapWindow(display, window);
+		XStoreName(display, window, "Modern GLX with X11");
+		glXMakeCurrent(display, window, context);
+
+		int major { 0 }, minor { 0 };
+		glGetIntegerv(GL_MAJOR_VERSION, &major);
+		glGetIntegerv(GL_MINOR_VERSION, &minor);
+	}
 	
 #elif
 #error Must implement at least one platform.

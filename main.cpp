@@ -12,7 +12,7 @@ typedef GLXContext (*glXCreateContextAttribsARBProc)
 
 int main()
 {
-    // Create_display_and_window
+    // Create window
     Display* display { XOpenDisplay(0) };
     if (display == NULL) {
         std::cout << "Cannot connect to X server!" << std::endl;
