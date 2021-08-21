@@ -4,11 +4,11 @@
 #include <GL/glx.h>
 #include <X11/Xlib.h>
 
-constexpr int width { 800 };
-constexpr int height { 600 };
+constexpr int width { 1580 };
+constexpr int height { 950 };
 
-typedef GLXContext (*glXCreateContextAttribsARBProc)
-    (Display*, GLXFBConfig, GLXContext, Bool, const int*);
+using glXCreateContextAttribsARBProc = 
+	GLXContext (*)(Display*, GLXFBConfig, GLXContext, Bool, const int*);
 
 int main()
 {

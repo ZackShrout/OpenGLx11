@@ -32,14 +32,15 @@ namespace Havana::Platform
 
 #include <GL/glx.h>
 #include <X11/Xlib.h>
+#include <stdlib.h>
 
-// Prevents collision from our window class and the XWindow Window define
+// Prevents collision from our Window class and the XWindow Window define
 using XWindow = Window;
 
 namespace Havana::Platform
 {
-	typedef GLXContext (*glXCreateContextAttribsARBProc)
-    (Display*, GLXFBConfig, GLXContext, Bool, const int*);
+	using glXCreateContextAttribsARBProc = 
+		GLXContext (*)(Display*, GLXFBConfig, GLXContext, Bool, const int*);
 	
 	using window_proc = XEvent*;
 	using window_handle = XWindow*;

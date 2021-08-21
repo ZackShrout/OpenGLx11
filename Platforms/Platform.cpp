@@ -290,6 +290,69 @@ namespace Havana::Platform
 	// OSX stuff here... open window for Metal context
 #elif __linux__ // Open window for OpenGL context
 	namespace {
+		// Linux OS specific window info
+		struct WindowInfo
+		{
+			XWindow*	window{ nullptr };
+			Display*	display{ nullptr };
+			//RECT	fullScreenArea{};
+			s32			left;
+			s32			top;
+			s32			width;
+			s32			height;
+
+			//DWORD	style{ WS_VISIBLE };
+			bool		isFullscreen{ false };
+			bool		isClosed{ false };
+		};
+
+		const char* ConvertToChar(const wchar_t* text)
+		{
+			size_t outSize = (sizeof(text) * sizeof(wchar_t)) + 1;
+			char outText[outSize];
+			wcstombs(outText, text, outSize);
+			return outText;
+		}
+
+		Utils::vector<WindowInfo> windows;
+
+		/////////////////////////////////////////////////////////////////
+		// TODO: this part will be handled by a free-list container later
+		Utils::vector<u32> availableSlots;
+
+		u32 AddToWindows(WindowInfo info)
+		{
+			u32 id{ U32_INVALID_ID };
+			if (availableSlots.empty())
+			{
+				id = (u32)windows.size();
+				windows.emplace_back(info);
+			}
+			else
+			{
+				id = availableSlots.back();
+				availableSlots.pop_back();
+				assert(id != U32_INVALID_ID);
+				windows[id] = info;
+			}
+
+			return id;
+		}
+
+		void RemoveFromWindows(u32 id)
+		{
+			assert(id < windows.size());
+			availableSlots.emplace_back(id);
+		}
+		/////////////////////////////////////////////////////////////////
+
+		WindowInfo& GetFromId(window_id id)
+		{
+			assert(id < windows.size());
+			assert(windows[id].window);
+			return windows[id];
+		}
+		
 		// Linux specific window class functions
 		void ResizeWindow(window_id id, u32 width, u32 height)
 		{
@@ -304,42 +367,42 @@ namespace Havana::Platform
 
 		bool IsWindowFullscreen(window_id id)
 		{
-			return false; // TODO: implement
+			return GetFromId(id).isFullscreen;
 		}
 
 		window_handle GetWindowHandle(window_id id)
 		{
-			window_handle window; // TODO: implement
-			return window;
+			return GetFromId(id).window;
 		}
 
 		void SetWindowCaption(window_id id, const wchar_t* caption)
 		{
-
+			WindowInfo& info{ GetFromId(id) };
+			XStoreName(info.display, *(info.window), ConvertToChar(caption));
 		}
 
 		Math::Vec4u32 GetWindowSize(window_id id)
 		{
-			Math::Vec4u32 size; // TODO: implement
-			return size;
+			WindowInfo& info{ GetFromId(id) };
+			return { (u32)info.left, (u32)info.top, (u32)info.width - (u32)info.left, (u32)info.height - (u32)info.top };
 		}
 
 		bool IsWindowClosed(window_id id)
 		{
-			return false; // TODO: implement
+			return GetFromId(id).isClosed;
 		}
 	} // anonymous namespace
 
 	Window MakeWindow(const WindowInitInfo* const initInfo /*= nullptr*/)
 	{
-		window_proc callback{ initInfo ? initInfo->callback : nullptr };
-		window_handle parent{ initInfo ? initInfo->parent : nullptr };
-
 		// Create display
 		Display* display { XOpenDisplay(0) };
 		if (display == NULL) {
 			return {};
 		}
+
+		window_proc callback{ initInfo ? initInfo->callback : nullptr };
+		window_handle parent{ initInfo ? initInfo->parent : &(DefaultRootWindow(display)) };
 
 		// Setup the screen, visual, and colormap
 		int screen { DefaultScreen(display) };
@@ -352,16 +415,21 @@ namespace Havana::Platform
 								ButtonPressMask | ButtonReleaseMask | PointerMotionMask;
 		attributes.colormap = colormap;
 
+		// Create an instance of WindowInfo
+		WindowInfo info{};
+		info.left = (initInfo && initInfo->left) ? initInfo->left : 0;	// generally, the X window manager overrides
+		info.top = (initInfo && initInfo->top) ? initInfo->top : 0;		// the starting top left coords, so default is 0,0
+		info.width = (initInfo && initInfo->width) ? initInfo->width : DisplayWidth(display, DefaultScreen(display));
+		info.height = (initInfo && initInfo->height) ? initInfo->height : DisplayHeight(display, DefaultScreen(display));
+		info.display = display;
+
 		// check for initial info, use defaults if none given
 		const wchar_t* caption{ (initInfo && initInfo->caption) ? initInfo->caption : L"Havana Game" };
-		const s32 left{ initInfo ? initInfo->left : 0 }; // generally, the X window manager overrides
-		const s32 top{ initInfo ? initInfo->top : 0 };   // the top left coords, so default is 0,0
-		const s32 width{ DisplayWidth(display, DefaultScreen(display)) };
-		const s32 height{ DisplayHeight(display, DefaultScreen(display)) };
 
-		XWindow window { XCreateWindow(display, DefaultRootWindow(display), left, top, width, height, 0,
+		XWindow window { XCreateWindow(display, *parent, info.left, info.top, info.width, info.height, 0,
 										DefaultDepth(display, screen), InputOutput, visual,
 										CWColormap | CWEventMask, &attributes) };
+		info.window = &window;
 
 		// Create_the_modern_OpenGL_context
 		static int visualAttribs[] {
