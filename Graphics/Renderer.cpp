@@ -15,6 +15,9 @@ namespace Havana::Graphics
 			case GraphicsPlatform::Direct3D12:
 				D3D12::GetPlatformInterface(gfx);
 				break;
+			case GraphicsPlatform::OpenGL:
+				D3D12::GetPlatformInterface(gfx);
+				break;
 			default:
 				return false;
 			}

@@ -53,8 +53,3 @@ namespace Havana::Math
 		return UnpackToUnitFloat<bits>(i) * (max - min) + min;
 	}
 }
-
-
-
-
-

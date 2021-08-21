@@ -482,6 +482,14 @@ namespace Havana::Platform
 		glGetIntegerv(GL_MAJOR_VERSION, &major);
 		glGetIntegerv(GL_MINOR_VERSION, &minor);
 	}
+
+	void RemoveWindow(window_id id)
+	{
+		WindowInfo& info{ GetFromId(id) };
+		XDestroyWindow(info.display, *(info.window));
+    	XCloseDisplay(info.display);
+		RemoveFromWindows(id);
+	}
 	
 #elif
 #error Must implement at least one platform.
